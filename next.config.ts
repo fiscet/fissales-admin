@@ -1,16 +1,12 @@
 import type { NextConfig } from 'next';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { remoteImagePatterns } from '@/lib/images';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: remoteImagePatterns,
   },
-  outputFileTracingRoot: path.join(__dirname, '../'),
+  // Remove outputFileTracingRoot as it's causing deployment issues on Vercel
+  // This setting is typically not needed for standard Next.js apps
 };
 
 export default nextConfig;
