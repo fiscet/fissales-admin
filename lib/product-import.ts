@@ -1,4 +1,4 @@
-import { Product, ApiResponse, SyncResponse } from '../types';
+import { Product, SyncResponse } from '../types';
 
 // Base URL for the server API
 const getServerUrl = () => {

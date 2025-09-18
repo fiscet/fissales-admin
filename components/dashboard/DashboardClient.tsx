@@ -23,7 +23,6 @@ import {
 import { testShopifyConnection, getShopInfo } from '@/lib/shopify-utils';
 
 export default function DashboardClient() {
-  const { user } = useAuth();
   const router = useRouter();
   const { addToast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -118,17 +117,6 @@ export default function DashboardClient() {
     } catch (error: any) {
       setConnectionStatus('failed');
       addToast(`Connection test failed: ${error.message}`, 'error');
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      addToast('Logged out successfully', 'success');
-      router.push('/login');
-    } catch (error: any) {
-      console.error('Logout error:', error);
-      addToast('Failed to logout', 'error');
     }
   };
 

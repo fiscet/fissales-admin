@@ -30,6 +30,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8080
 - **Product Management**: View and edit product catalog
 - **Vector Search Testing**: Test product search functionality
 - **Data Synchronization**: Sync between Shopify, Firebase, and Qdrant
+- **Prompt Management**: Create, edit, and manage AI prompts with caching
 - **Authentication**: Secure admin access with Firebase Auth
 - **Real-time Statistics**: Monitor system performance
 
@@ -40,6 +41,26 @@ NEXT_PUBLIC_API_BASE=http://localhost:8080
 - `npm start` - Start production server
 - `npm run lint` - Lint code
 - `npm run type-check` - TypeScript type checking
+
+## 🔤 Prompt Management
+
+The dashboard includes a complete prompt management system that connects to the external FisSales API server:
+
+**External API Endpoints** (running on `localhost:4111`):
+- `GET /api/prompts` - List all prompts
+- `GET /api/prompts/:name` - Get specific prompt
+- `POST /api/prompts/:name` - Create/update prompt
+- `DELETE /api/prompts/:name` - Delete prompt
+- `GET /api/prompts/cache/stats` - Get cache statistics
+- `POST /api/prompts/cache/clear` - Clear prompt cache
+
+**Admin Dashboard Features:**
+- **Client-side caching** for improved performance
+- **External API integration** with the FisSales server
+- **Input validation** and error handling
+- **Admin-only access** with Firebase Auth
+- **Real-time UI** for prompt editing
+- **Cache management** tools
 
 ## 🏗️ Architecture
 

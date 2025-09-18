@@ -59,3 +59,32 @@ export interface SearchResponse {
   count: number;
   timestamp: string;
 }
+
+// Prompt management types
+export interface Prompt {
+  name: string;
+  content: string;
+  version?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  loadedFrom?: 'cache' | 'firestore' | 'file';
+}
+
+export interface PromptListResponse extends ApiResponse<string[]> {
+  count: number;
+}
+
+export interface PromptResponse extends ApiResponse<Prompt> { }
+
+export interface PromptSaveResponse extends ApiResponse<{
+  name: string;
+  message: string;
+  version: number;
+}> { }
+
+export interface CacheStats {
+  size: number;
+  keys: string[];
+  lastAccessed: Record<string, Date>;
+  hitRate?: number;
+}
