@@ -13,7 +13,7 @@ import {
   CubeIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
-import { getApiServerType, getImportFunctions, getServerTypeDisplay } from '@/lib/api-config';
+import { getImportFunctions } from '@/lib/api-config';
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -23,19 +23,70 @@ export default function DashboardClient() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'failed'>('idle');
-  const [serverType] = useState(getApiServerType());
-  const [importFunctions] = useState(getImportFunctions());
+  const [serverType, setServerType] = useState<'shopify' | 'woocommerce' | null>(null);
+  const [serverTypeDisplay, setServerTypeDisplay] = useState<string>('');
+  const [importFunctions, setImportFunctions] = useState<any>(null);
 
   useEffect(() => {
-    loadStats();
-    loadStoreInfo();
+    const initializeDashboard = async () => {
+      try {
+        const { serverType, serverTypeDisplay, importFunctions } = await loadServerType();
+        await loadStats(importFunctions);
+        await loadStoreInfo(importFunctions);
+      } catch (error) {
+        console.error('Failed to initialize dashboard:', error);
+        // Ensure loading is set to false even on error
+        setLoading(false);
+      }
+    };
+
+    initializeDashboard();
   }, []);
 
-  const loadStats = async () => {
+  const loadServerType = async () => {
+    try {
+      const response = await fetch('/api/server-type');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const serverType = result.data.serverType;
+        const serverTypeDisplay = result.data.displayName;
+        const importFunctions = getImportFunctions(serverType);
+
+        setServerType(serverType);
+        setServerTypeDisplay(serverTypeDisplay);
+        setImportFunctions(importFunctions);
+
+        return { serverType, serverTypeDisplay, importFunctions };
+      } else {
+        throw new Error(result.error || 'Failed to load server type');
+      }
+    } catch (error) {
+      console.error('Failed to load server type:', error);
+      // Fallback to woocommerce if API fails
+      const serverType = 'woocommerce';
+      const serverTypeDisplay = 'WooCommerce';
+      const importFunctions = getImportFunctions(serverType);
+
+      setServerType(serverType);
+      setServerTypeDisplay(serverTypeDisplay);
+      setImportFunctions(importFunctions);
+
+      return { serverType, serverTypeDisplay, importFunctions };
+    }
+  };
+
+  const loadStats = async (importFunctionsParam?: any) => {
+    const functionsToUse = importFunctionsParam || importFunctions;
+
+    if (!functionsToUse) {
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const getProductStatsFn = await importFunctions.getProductStats();
+      const getProductStatsFn = await functionsToUse.getProductStats();
       const result = await getProductStatsFn();
 
       if (result.success && result.data) {
@@ -52,6 +103,8 @@ export default function DashboardClient() {
   };
 
   const handleSync = async (type: 'store' | 'qdrant') => {
+    if (!importFunctions) return;
+
     setSyncing(type);
 
     try {
@@ -61,8 +114,7 @@ export default function DashboardClient() {
       if (type === 'store') {
         const importAllProductsFn = await importFunctions.importAllProducts();
         result = await importAllProductsFn();
-        const storeName = getServerTypeDisplay();
-        successMessage = `Products synced from ${storeName} successfully! (${result.data?.success || 0} imported, ${result.data?.errors || 0} errors)`;
+        successMessage = `Products synced from ${serverTypeDisplay} successfully! (${result.data?.success || 0} imported, ${result.data?.errors || 0} errors)`;
       } else {
         const syncAllProductsToQdrantFn = await importFunctions.syncAllProductsToQdrant();
         result = await syncAllProductsToQdrantFn();
@@ -83,9 +135,13 @@ export default function DashboardClient() {
     }
   };
 
-  const loadStoreInfo = async () => {
+  const loadStoreInfo = async (importFunctionsParam?: any) => {
+    const functionsToUse = importFunctionsParam || importFunctions;
+
+    if (!functionsToUse) return;
+
     try {
-      const getStoreInfoFn = await importFunctions.getStoreInfo();
+      const getStoreInfoFn = await functionsToUse.getStoreInfo();
       const result = await getStoreInfoFn();
 
       if (result.success && result.data) {
@@ -101,6 +157,8 @@ export default function DashboardClient() {
   };
 
   const handleTestConnection = async () => {
+    if (!importFunctions) return;
+
     setConnectionStatus('testing');
 
     try {
@@ -109,8 +167,7 @@ export default function DashboardClient() {
 
       if (result.success) {
         setConnectionStatus('connected');
-        const storeName = getServerTypeDisplay();
-        addToast(`${storeName} connection successful!`, 'success');
+        addToast(`${serverTypeDisplay} connection successful!`, 'success');
         await loadStoreInfo(); // Load store info after successful connection
       } else {
         setConnectionStatus('failed');
@@ -162,7 +219,7 @@ export default function DashboardClient() {
                   <CloudArrowUpIcon className="w-8 h-8 text-warning-500" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Last {getServerTypeDisplay()} Sync</p>
+                  <p className="text-sm font-medium text-gray-500">Last {serverTypeDisplay} Sync</p>
                   <p className="text-sm text-gray-900">
                     {serverType === 'shopify'
                       ? (stats?.lastSyncFirebase ? stats.lastSyncFirebase.toLocaleDateString() : 'Never')
@@ -191,7 +248,7 @@ export default function DashboardClient() {
           {/* Store Connection Status */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">{getServerTypeDisplay()} Connection</h3>
+              <h3 className="text-lg font-medium text-gray-900">{serverTypeDisplay} Connection</h3>
               <button
                 onClick={handleTestConnection}
                 disabled={connectionStatus === 'testing'}
@@ -231,7 +288,7 @@ export default function DashboardClient() {
 
             {connectionStatus === 'failed' && (
               <p className="text-sm text-red-600">
-                Connection failed. Please check your {getServerTypeDisplay()} configuration.
+                Connection failed. Please check your {serverTypeDisplay} configuration.
               </p>
             )}
           </div>
@@ -267,9 +324,9 @@ export default function DashboardClient() {
           {/* Action Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">{getServerTypeDisplay()} Integration</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{serverTypeDisplay} Integration</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Import products from {getServerTypeDisplay()} to Firebase database
+                Import products from {serverTypeDisplay} to Firebase database
               </p>
               <button
                 onClick={() => handleSync('store')}
@@ -279,12 +336,12 @@ export default function DashboardClient() {
                 {syncing === 'store' ? (
                   <>
                     <LoadingSpinner size="sm" />
-                    Syncing from {getServerTypeDisplay()}...
+                    Syncing from {serverTypeDisplay}...
                   </>
                 ) : (
                   <>
                     <CloudArrowUpIcon className="w-4 h-4" />
-                    Sync Products from {getServerTypeDisplay()}
+                    Sync Products from {serverTypeDisplay}
                   </>
                 )}
               </button>

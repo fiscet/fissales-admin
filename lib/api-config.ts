@@ -11,10 +11,10 @@ export const getApiServerType = (): 'shopify' | 'woocommerce' => {
 };
 
 // Get the appropriate import functions based on server type
-export const getImportFunctions = () => {
-  const serverType = getApiServerType();
+export const getImportFunctions = (serverType?: 'shopify' | 'woocommerce') => {
+  const type = serverType || getApiServerType();
 
-  if (serverType === 'shopify') {
+  if (type === 'shopify') {
     return {
       importAllProducts: () => import('./product-import-shopify').then(m => m.importAllProductsFromShopify),
       getAllProducts: () => import('./product-import-shopify').then(m => m.getAllProducts),
