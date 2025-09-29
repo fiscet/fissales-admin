@@ -9,11 +9,7 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { CompanyInfo } from '../../types';
-import {
-  importCompanyFromShopify,
-  getCompanyInfo,
-  formatCompanyInfo
-} from '../../lib/company-import';
+import { getImportFunctions, getServerTypeDisplay } from '../../lib/api-config';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
 interface ImportStatus {
@@ -25,6 +21,7 @@ export default function CompanyImportClient() {
   const [currentCompany, setCurrentCompany] = useState<CompanyInfo | null>(null);
   const [importStatus, setImportStatus] = useState<ImportStatus>({ type: 'idle' });
   const [loading, setLoading] = useState(true);
+  const [importFunctions] = useState(getImportFunctions());
 
   // Load current company info on component mount
   useEffect(() => {
@@ -34,7 +31,8 @@ export default function CompanyImportClient() {
   const loadCurrentCompanyInfo = async () => {
     try {
       setLoading(true);
-      const result = await getCompanyInfo();
+      const getCompanyInfoFn = await importFunctions.getCompanyInfo();
+      const result = await getCompanyInfoFn();
 
       if (result.success) {
         setCurrentCompany(result.data || null);
@@ -50,10 +48,12 @@ export default function CompanyImportClient() {
 
 
   const handleImportCompany = async () => {
-    setImportStatus({ type: 'loading', message: 'Importing company information from Shopify...' });
+    const storeName = getServerTypeDisplay();
+    setImportStatus({ type: 'loading', message: `Importing company information from ${storeName}...` });
 
     try {
-      const result = await importCompanyFromShopify();
+      const importCompanyFn = await importFunctions.importCompany();
+      const result = await importCompanyFn();
 
       if (result.success && result.data) {
         setCurrentCompany(result.data);
@@ -107,11 +107,40 @@ export default function CompanyImportClient() {
             <h3 className="font-medium text-yellow-800">No Company Information</h3>
           </div>
           <p className="text-yellow-700 text-sm">
-            No company information found in the database. Import from Shopify to get started.
+            No company information found in the database. Import from {getServerTypeDisplay()} to get started.
           </p>
         </div>
       );
     }
+
+    // Format company info for display
+    const formatCompanyInfo = (company: CompanyInfo) => {
+      return {
+        name: company.name,
+        description: company.description,
+        email: company.contactInfo?.email || 'Not provided',
+        phone: company.contactInfo?.phone || 'Not provided',
+        address: formatAddress(company.contactInfo?.address),
+        policies: company.policies?.length || 0,
+        lastUpdated: company.updatedAt ? new Date(company.updatedAt).toLocaleString() : 'Never',
+      };
+    };
+
+    // Format address for display
+    const formatAddress = (address: any) => {
+      if (!address) return 'Not provided';
+
+      const parts = [
+        address.address1,
+        address.address2,
+        address.city,
+        address.province,
+        address.country,
+        address.zip,
+      ].filter(Boolean);
+
+      return parts.length > 0 ? parts.join(', ') : 'Not provided';
+    };
 
     const formatted = formatCompanyInfo(currentCompany);
 
@@ -166,7 +195,7 @@ export default function CompanyImportClient() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Company Information Import</h1>
         <p className="text-gray-600 mt-1">
-          Import and manage company information from your Shopify store.
+          Import and manage company information from your {getServerTypeDisplay()} store.
         </p>
       </div>
 
@@ -177,7 +206,7 @@ export default function CompanyImportClient() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Import Company Information</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Import company details, policies, and contact information from Shopify.
+              Import company details, policies, and contact information from {getServerTypeDisplay()}.
             </p>
           </div>
           <button
@@ -190,7 +219,7 @@ export default function CompanyImportClient() {
             ) : (
               <CloudArrowDownIcon className="w-4 h-4" />
             )}
-            Import from Shopify
+            Import from {getServerTypeDisplay()}
           </button>
         </div>
         {renderStatus(importStatus)}

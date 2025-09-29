@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useToast } from '@/components/ui/Toaster';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Product } from '@/types';
+import { getImportFunctions } from '@/lib/api-config';
 import {
   ArrowLeftIcon,
   PencilIcon,
@@ -13,14 +14,13 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080').replace(/\/$/, '');
-
 export default function ProductsListClient() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [syncing, setSyncing] = useState<string | null>(null);
   const { addToast } = useToast();
+  const [importFunctions] = useState(getImportFunctions());
 
   useEffect(() => {
     loadProducts();
@@ -29,13 +29,13 @@ export default function ProductsListClient() {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/shopify/products`);
-      const data = await response.json();
+      const getAllProductsFn = await importFunctions.getAllProducts();
+      const result = await getAllProductsFn();
 
-      if (response.ok) {
-        setProducts(data.products || []);
+      if (result.success) {
+        setProducts(result.data || []);
       } else {
-        throw new Error(data.message || 'Failed to load products');
+        throw new Error(result.error || 'Failed to load products');
       }
     } catch (error: any) {
       console.error('Failed to load products:', error);
@@ -49,6 +49,9 @@ export default function ProductsListClient() {
     setSyncing(productId);
 
     try {
+      // Note: This function is not available in the import functions, so we'll use the direct API call
+      // This should be added to the import functions if needed
+      const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080').replace(/\/$/, '');
       const response = await fetch(`${API_BASE}/api/products/${productId}/sync-to-qdrant`, {
         method: 'POST',
       });

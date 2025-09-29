@@ -25,6 +25,7 @@ export interface DashboardStats {
   firebaseProducts: number;
   qdrantProducts: number;
   lastSyncFirebase?: Date;
+  lastSyncWooCommerce?: Date;
   lastSyncQdrant?: Date;
 }
 

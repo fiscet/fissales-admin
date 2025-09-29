@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
-import { useAuth } from '@/components/auth/AuthProvider';
 import { useToast } from '@/components/ui/Toaster';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { DashboardStats } from '@/types';
@@ -15,12 +13,7 @@ import {
   CubeIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
-import {
-  getProductStats,
-  importAllProductsFromShopify,
-  syncAllProductsToQdrant
-} from '@/lib/product-import';
-import { testShopifyConnection, getShopInfo } from '@/lib/shopify-utils';
+import { getApiServerType, getImportFunctions, getServerTypeDisplay } from '@/lib/api-config';
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -28,19 +21,22 @@ export default function DashboardClient() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
-  const [shopInfo, setShopInfo] = useState<any>(null);
+  const [storeInfo, setStoreInfo] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'failed'>('idle');
+  const [serverType] = useState(getApiServerType());
+  const [importFunctions] = useState(getImportFunctions());
 
   useEffect(() => {
     loadStats();
-    loadShopInfo();
+    loadStoreInfo();
   }, []);
 
   const loadStats = async () => {
     try {
       setLoading(true);
 
-      const result = await getProductStats();
+      const getProductStatsFn = await importFunctions.getProductStats();
+      const result = await getProductStatsFn();
 
       if (result.success && result.data) {
         setStats(result.data);
@@ -55,18 +51,21 @@ export default function DashboardClient() {
     }
   };
 
-  const handleSync = async (type: 'shopify' | 'qdrant') => {
+  const handleSync = async (type: 'store' | 'qdrant') => {
     setSyncing(type);
 
     try {
       let result;
       let successMessage = '';
 
-      if (type === 'shopify') {
-        result = await importAllProductsFromShopify();
-        successMessage = `Products synced from Shopify successfully! (${result.data?.success || 0} imported, ${result.data?.errors || 0} errors)`;
+      if (type === 'store') {
+        const importAllProductsFn = await importFunctions.importAllProducts();
+        result = await importAllProductsFn();
+        const storeName = getServerTypeDisplay();
+        successMessage = `Products synced from ${storeName} successfully! (${result.data?.success || 0} imported, ${result.data?.errors || 0} errors)`;
       } else {
-        result = await syncAllProductsToQdrant();
+        const syncAllProductsToQdrantFn = await importFunctions.syncAllProductsToQdrant();
+        result = await syncAllProductsToQdrantFn();
         successMessage = `Products synced to Qdrant successfully! (${result.data?.synced || 0} synced)`;
       }
 
@@ -84,18 +83,19 @@ export default function DashboardClient() {
     }
   };
 
-  const loadShopInfo = async () => {
+  const loadStoreInfo = async () => {
     try {
-      const result = await getShopInfo();
+      const getStoreInfoFn = await importFunctions.getStoreInfo();
+      const result = await getStoreInfoFn();
 
       if (result.success && result.data) {
-        setShopInfo(result.data);
+        setStoreInfo(result.data);
         setConnectionStatus('connected');
       } else {
         setConnectionStatus('failed');
       }
     } catch (error) {
-      console.error('Failed to load shop info:', error);
+      console.error('Failed to load store info:', error);
       setConnectionStatus('failed');
     }
   };
@@ -104,12 +104,14 @@ export default function DashboardClient() {
     setConnectionStatus('testing');
 
     try {
-      const result = await testShopifyConnection();
+      const testConnectionFn = await importFunctions.testConnection();
+      const result = await testConnectionFn();
 
       if (result.success) {
         setConnectionStatus('connected');
-        addToast('Shopify connection successful!', 'success');
-        await loadShopInfo(); // Load shop info after successful connection
+        const storeName = getServerTypeDisplay();
+        addToast(`${storeName} connection successful!`, 'success');
+        await loadStoreInfo(); // Load store info after successful connection
       } else {
         setConnectionStatus('failed');
         addToast(`Connection failed: ${result.error}`, 'error');
@@ -160,9 +162,12 @@ export default function DashboardClient() {
                   <CloudArrowUpIcon className="w-8 h-8 text-warning-500" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">Last Shopify Sync</p>
+                  <p className="text-sm font-medium text-gray-500">Last {getServerTypeDisplay()} Sync</p>
                   <p className="text-sm text-gray-900">
-                    {stats?.lastSyncFirebase ? stats.lastSyncFirebase.toLocaleDateString() : 'Never'}
+                    {serverType === 'shopify'
+                      ? (stats?.lastSyncFirebase ? stats.lastSyncFirebase.toLocaleDateString() : 'Never')
+                      : (stats?.lastSyncWooCommerce ? stats.lastSyncWooCommerce.toLocaleDateString() : 'Never')
+                    }
                   </p>
                 </div>
               </div>
@@ -183,10 +188,10 @@ export default function DashboardClient() {
             </div>
           </div>
 
-          {/* Shopify Connection Status */}
+          {/* Store Connection Status */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Shopify Connection</h3>
+              <h3 className="text-lg font-medium text-gray-900">{getServerTypeDisplay()} Connection</h3>
               <button
                 onClick={handleTestConnection}
                 disabled={connectionStatus === 'testing'}
@@ -207,26 +212,26 @@ export default function DashboardClient() {
               </button>
             </div>
 
-            {shopInfo && connectionStatus === 'connected' && (
+            {storeInfo && connectionStatus === 'connected' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="font-medium text-gray-700">Store Name:</span>
-                  <p className="text-gray-900">{shopInfo.name}</p>
+                  <p className="text-gray-900">{storeInfo.name || storeInfo.title}</p>
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">Domain:</span>
-                  <p className="text-gray-900">{shopInfo.domain}</p>
+                  <p className="text-gray-900">{storeInfo.domain || storeInfo.url}</p>
                 </div>
                 <div>
                   <span className="font-medium text-gray-700">Email:</span>
-                  <p className="text-gray-900">{shopInfo.email || 'Not provided'}</p>
+                  <p className="text-gray-900">{storeInfo.email || 'Not provided'}</p>
                 </div>
               </div>
             )}
 
             {connectionStatus === 'failed' && (
               <p className="text-sm text-red-600">
-                Connection failed. Please check your Shopify configuration.
+                Connection failed. Please check your {getServerTypeDisplay()} configuration.
               </p>
             )}
           </div>
@@ -262,24 +267,24 @@ export default function DashboardClient() {
           {/* Action Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Shopify Integration</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{getServerTypeDisplay()} Integration</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Import products from Shopify to Firebase database
+                Import products from {getServerTypeDisplay()} to Firebase database
               </p>
               <button
-                onClick={() => handleSync('shopify')}
-                disabled={syncing === 'shopify'}
+                onClick={() => handleSync('store')}
+                disabled={syncing === 'store'}
                 className="btn-primary w-full"
               >
-                {syncing === 'shopify' ? (
+                {syncing === 'store' ? (
                   <>
                     <LoadingSpinner size="sm" />
-                    Syncing from Shopify...
+                    Syncing from {getServerTypeDisplay()}...
                   </>
                 ) : (
                   <>
                     <CloudArrowUpIcon className="w-4 h-4" />
-                    Sync Products from Shopify
+                    Sync Products from {getServerTypeDisplay()}
                   </>
                 )}
               </button>

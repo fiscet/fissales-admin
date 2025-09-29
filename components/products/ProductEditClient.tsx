@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useToast } from '@/components/ui/Toaster';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Product } from '@/types';
+import { getImportFunctions } from '@/lib/api-config';
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -27,6 +28,7 @@ export default function ProductEditClient({ productId }: ProductEditClientProps)
   const [descriptionExtra, setDescriptionExtra] = useState('');
   const { addToast } = useToast();
   const router = useRouter();
+  const [importFunctions] = useState(getImportFunctions());
 
   useEffect(() => {
     if (productId) {
@@ -39,11 +41,11 @@ export default function ProductEditClient({ productId }: ProductEditClientProps)
       setLoading(true);
 
       // Get all products and find the specific one
-      const response = await fetch(`${API_BASE}/api/shopify/products`);
-      const data = await response.json();
+      const getAllProductsFn = await importFunctions.getAllProducts();
+      const result = await getAllProductsFn();
 
-      if (response.ok) {
-        const foundProduct = data.products.find((p: Product) => p.id === productId);
+      if (result.success) {
+        const foundProduct = result.data?.find((p: Product) => p.id === productId);
         if (foundProduct) {
           setProduct(foundProduct);
           setDescriptionExtra(foundProduct.descriptionExtra || '');
@@ -51,7 +53,7 @@ export default function ProductEditClient({ productId }: ProductEditClientProps)
           throw new Error('Product not found');
         }
       } else {
-        throw new Error(data.message || 'Failed to load product');
+        throw new Error(result.error || 'Failed to load product');
       }
     } catch (error: any) {
       console.error('Failed to load product:', error);
